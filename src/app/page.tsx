@@ -5,35 +5,30 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 const suits = ['♠', '♥', '♦', '♣']
 const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+const questionIndexes = [0, 9, 25, 32, 51]
 
 function shuffleDeck(): string[] {
   const deck: string[] = []
-  for (const s of suits)
-    for (const v of values)
-      deck.push(`${v}${s}`)
+  for (const s of suits) for (const v of values) deck.push(`${v}${s}`)
   return deck.sort(() => Math.random() - 0.5)
 }
 
 function fileName(card: string): string {
-  return card
-    .replace('♠', 'S')
-    .replace('♥', 'H')
-    .replace('♦', 'D')
-    .replace('♣', 'C')
+  return card.replace('♠', 'S').replace('♥', 'H').replace('♦', 'D').replace('♣', 'C')
 }
-
-const questionIndexes = [0, 9, 25, 32, 51]
 
 export default function SakuraMemory() {
   const [deck, setDeck] = useState<string[]>([])
-  const [currentIndex, setCurrentIndex] = useState<number>(0)
+  const [currentIndex, setCurrentIndex] = useState(0)
   const [showQuestions, setShowQuestions] = useState(false)
   const [answers, setAnswers] = useState<string[]>(Array(questionIndexes.length).fill(''))
   const [result, setResult] = useState<string[]>([])
+
   const [playlist, setPlaylist] = useState<string[]>([])
   const [trackIndex, setTrackIndex] = useState(0)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
-  const [isPlaying, setIsPlaying] = useState(true)
+  const [isPlaying, setIsPlaying] = useState(false)
+
   const flipAudioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
@@ -51,7 +46,11 @@ export default function SakuraMemory() {
   useEffect(() => {
     fetch('/api/music')
       .then(res => res.json())
-      .then(files => setPlaylist(files.map((f: string) => `/music/${f}`)))
+      .then(files => {
+        const shuffled = files.sort(() => Math.random() - 0.5)
+        setPlaylist(shuffled.map((f: string) => `/music/${f}`))
+        setTrackIndex(Math.floor(Math.random() * shuffled.length))
+      })
   }, [])
 
   useEffect(() => {
@@ -63,13 +62,16 @@ export default function SakuraMemory() {
     const newAudio = new Audio(playlist[trackIndex])
     newAudio.loop = false
     newAudio.volume = 0.5
-    newAudio.play().catch(() => {})
+
+    newAudio.play().then(() => setIsPlaying(true)).catch(() => {})
     newAudio.onended = () => {
       const nextIndex = (trackIndex + 1) % playlist.length
       setTrackIndex(nextIndex)
       setIsPlaying(true)
     }
+
     setAudio(newAudio)
+
     return () => {
       newAudio.pause()
       newAudio.src = ''
@@ -200,7 +202,6 @@ export default function SakuraMemory() {
           </>
         )}
 
-        {/* 🎵 Music controls */}
         {playlist.length > 0 && (
           <div className="flex flex-col items-center justify-center mt-6">
             <div className="flex gap-4">
