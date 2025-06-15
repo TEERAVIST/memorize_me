@@ -32,7 +32,7 @@ function formatTime(totalSeconds: number): string {
 
   const pad = (num: number) => num.toString().padStart(2, '0');
 
-  return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}`;
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
 export default function SakuraMemory() {
@@ -194,10 +194,24 @@ export default function SakuraMemory() {
         </h1>
 
         {/* Timer Display */}
-        <div className="mb-4 text-lg font-semibold drop-shadow">
-          <p>เวลาในรอบปัจจุบัน: {formatTime(roundTime)}</p>
-          <p>เวลาเล่นทั้งหมด: {formatTime(totalTime)}</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-6 p-4 bg-gradient-to-r from-purple-800 to-pink-700 rounded-lg shadow-lg border border-pink-500 text-center font-mono text-xl md:text-2xl drop-shadow-md"
+        >
+          <p className="text-pink-200">เวลาในรอบปัจจุบัน:</p>
+          {/* Removed motion.p and key to stop re-rendering every second */}
+          <p className="text-white text-3xl md:text-4xl font-bold mb-2">
+            {formatTime(roundTime)}
+          </p>
+          <p className="text-purple-200">เวลาเล่นทั้งหมด:</p>
+          {/* Removed motion.p and key to stop re-rendering every second */}
+          <p className="text-white text-3xl md:text-4xl font-bold">
+            {formatTime(totalTime)}
+          </p>
+        </motion.div>
+
 
         {!showQuestions ? (
           <>
