@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 const suits = ['♠', '♥', '♦', '♣']
 const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
-const questionIndexes = [0, 9, 25, 32, 51]
 
 function shuffleDeck(): string[] {
   const deck: string[] = []
@@ -17,12 +16,38 @@ function fileName(card: string): string {
   return card.replace('♠', 'S').replace('♥', 'H').replace('♦', 'D').replace('♣', 'C')
 }
 
+function getRandomUniqueNumbers(count: number, max: number): number[] {
+  const numbers = new Set<number>()
+  while (numbers.size < count) {
+    numbers.add(Math.floor(Math.random() * max))
+  }
+  return Array.from(numbers).sort((a, b) => a - b)
+}
+
+// Helper function to format time from seconds to HH.MM.SS
+function formatTime(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const pad = (num: number) => num.toString().padStart(2, '0');
+
+  return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}`;
+}
+
 export default function SakuraMemory() {
   const [deck, setDeck] = useState<string[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showQuestions, setShowQuestions] = useState(false)
-  const [answers, setAnswers] = useState<string[]>(Array(questionIndexes.length).fill(''))
+  const [randomQuestionIndexes, setRandomQuestionIndexes] = useState<number[]>([])
+  const [answers, setAnswers] = useState<string[]>(Array(5).fill(''))
   const [result, setResult] = useState<string[]>([])
+
+  // Timer states
+  const [roundTime, setRoundTime] = useState(0) // Time for the current round in seconds
+  const [totalTime, setTotalTime] = useState(0) // Total time played across all rounds in seconds
+  const roundTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const totalTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const [playlist, setPlaylist] = useState<string[]>([])
   const [trackIndex, setTrackIndex] = useState(0)
@@ -55,7 +80,38 @@ export default function SakuraMemory() {
 
   useEffect(() => {
     setDeck(shuffleDeck())
+    // Start total time tracking when component mounts
+    totalTimerRef.current = setInterval(() => {
+      setTotalTime(prevTime => prevTime + 1)
+    }, 1000)
+
+    return () => {
+      if (totalTimerRef.current) {
+        clearInterval(totalTimerRef.current)
+      }
+    }
   }, [])
+
+  // Start/Stop round timer
+  useEffect(() => {
+    if (!showQuestions) { // Timer runs when viewing cards
+      roundTimerRef.current = setInterval(() => {
+        setRoundTime(prevTime => prevTime + 1)
+      }, 1000)
+    } else { // Stop timer when questions are shown
+      if (roundTimerRef.current) {
+        clearInterval(roundTimerRef.current)
+        roundTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (roundTimerRef.current) {
+        clearInterval(roundTimerRef.current)
+      }
+    }
+  }, [showQuestions])
+
 
   useEffect(() => {
     if (playlist.length === 0) return
@@ -83,7 +139,11 @@ export default function SakuraMemory() {
       playFlipSound()
       setCurrentIndex(currentIndex + 1)
     } else {
-      setShowQuestions(true)
+      const numQuestions = 5;
+      setRandomQuestionIndexes(getRandomUniqueNumbers(numQuestions, deck.length));
+      setAnswers(Array(numQuestions).fill(''));
+      setShowQuestions(true);
+      // Round timer will automatically stop due to showQuestions change
     }
   }
 
@@ -99,7 +159,10 @@ export default function SakuraMemory() {
     setCurrentIndex(0)
     setShowQuestions(false)
     setResult([])
-    setAnswers(Array(questionIndexes.length).fill(''))
+    setAnswers(Array(5).fill(''))
+    setRandomQuestionIndexes([]);
+    setRoundTime(0); // Reset round time for the new round
+    // Round timer will automatically restart due to showQuestions change
     playFlipSound()
   }
 
@@ -111,7 +174,7 @@ export default function SakuraMemory() {
 
   const handleCheck = () => {
     const res = answers.map((ans, i) => {
-      const correct = deck[questionIndexes[i]].toUpperCase()
+      const correct = deck[randomQuestionIndexes[i]].toUpperCase()
       return ans.trim().toUpperCase() === correct ? '✅ ถูกต้อง' : `❌ ผิด (คำตอบที่ถูกคือ: ${correct})`
     })
     setResult(res)
@@ -127,8 +190,14 @@ export default function SakuraMemory() {
 
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6">
         <h1 className="text-2xl font-bold mb-6 drop-shadow-xl">
-          🌸 Sakura Memory: ทดสอบความจำไพ่ + เพลง + คะแนน
+          🌸 Sakura Memory: ทดสอบความจำไพ่
         </h1>
+
+        {/* Timer Display */}
+        <div className="mb-4 text-lg font-semibold drop-shadow">
+          <p>เวลาในรอบปัจจุบัน: {formatTime(roundTime)}</p>
+          <p>เวลาเล่นทั้งหมด: {formatTime(totalTime)}</p>
+        </div>
 
         {!showQuestions ? (
           <>
@@ -162,7 +231,7 @@ export default function SakuraMemory() {
         ) : (
           <>
             <h2 className="text-xl font-semibold mb-4">📝 ตอบคำถามความจำ (เลือกไพ่จากภาพ)</h2>
-            {questionIndexes.map((idx, i) => (
+            {randomQuestionIndexes.map((idx, i) => (
               <div key={idx} className="my-4">
                 <p className="mb-2">ไพ่ใบที่ {idx + 1} คือ:</p>
                 <div className="grid grid-cols-13 gap-1">
@@ -188,11 +257,27 @@ export default function SakuraMemory() {
 
             {result.length > 0 && (
               <div className="mt-6 space-y-2">
-                {result.map((res, i) => (
-                  <div key={i} className="text-lg">
-                    คำตอบไพ่ใบที่ {questionIndexes[i] + 1}: {res}
-                  </div>
-                ))}
+                {result.map((res, i) => {
+                  const isCorrect = res.startsWith('✅');
+                  const correctCard = deck[randomQuestionIndexes[i]];
+
+                  return (
+                    <div key={i} className="text-lg flex items-center gap-2">
+                      คำตอบไพ่ใบที่ {randomQuestionIndexes[i] + 1}:{' '}
+                      {isCorrect ? (
+                        <>
+                          ✅ ถูกต้อง
+                          <img src={`/cards/${fileName(correctCard)}.png`} alt={correctCard} className="inline-block w-10 h-auto rounded" />
+                        </>
+                      ) : (
+                        <>
+                          ❌ ผิด (คำตอบที่ถูกคือ:
+                          <img src={`/cards/${fileName(correctCard)}.png`} alt={correctCard} className="inline-block w-10 h-auto rounded" />)
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
